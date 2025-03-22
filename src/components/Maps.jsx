@@ -8,7 +8,29 @@ import {
 } from "react-leaflet";
 
 import "leaflet/dist/leaflet.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+function MapEvents({ setVisibleRestaurants, allRestaurants }) {
+  const map = useMapEvent("moveend", () => {
+    updateVisibleRestaurants();
+  });
+
+  // Debounced filter inside the scope that has access to map
+  const updateVisibleRestaurants = debounce(() => {
+    if (!map) return;
+
+    const bounds = map.getBounds();
+
+    const visible = allRestaurants.filter((restaurant) => {
+      const [lat, lng] = restaurant.position;
+      return bounds.contains([lat, lng]);
+    });
+
+    setVisibleRestaurants(visible);
+  }, 300);
+
+  return null;
+}
 
 const cities = [
   {
@@ -101,6 +123,9 @@ async function geocodeRestaurants(restaurants) {
 
 export default function Maps() {
   const [position, setPosition] = useState([43.675819, 7.289429]);
+  const [selectedRestaurantName, setSelectedRestaurantName] = useState(null);
+  const [visibleRestaurants, setVisibleRestaurants] = useState([]);
+
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
@@ -165,6 +190,7 @@ export default function Maps() {
         },
       ]);
       setRestaurants(geocodedRestaurants);
+      setVisibleRestaurants(geocodedRestaurants);
     };
 
     fetchRestaurants();
@@ -212,13 +238,22 @@ export default function Maps() {
             </ul>
           )}
         </>
-        <h1 className="text-lg font-bold mb-2">Liste des restaurants</h1>
+        <h1 className="text-lg font-bold mb-2">
+          Liste des restaurants visibles
+        </h1>
         <ul>
-          {restaurants.map((restaurant) => (
+          {visibleRestaurants.map((restaurant) => (
             <li
               key={restaurant.name}
-              className="cursor-pointer hover:text-blue-500"
-              onClick={() => setPosition(restaurant.position)}
+              className={`cursor-pointer hover:text-blue-500 ${
+                selectedRestaurantName === restaurant.name
+                  ? "font-bold text-blue-700"
+                  : ""
+              }`}
+              onClick={() => {
+                setPosition(restaurant.position);
+                setSelectedRestaurantName(restaurant.name);
+              }}
             >
               {restaurant.name}
             </li>
@@ -234,12 +269,28 @@ export default function Maps() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
+        <MapEvents
+          setVisibleRestaurants={setVisibleRestaurants}
+          allRestaurants={restaurants}
+        />
+
         {restaurants.map((restaurant) => (
-          <Marker key={restaurant.name} position={restaurant.position}>
+          <Marker
+            key={restaurant.name}
+            position={restaurant.position}
+            eventHandlers={{
+              click: () => {
+                setSelectedRestaurantName(restaurant.name);
+                setPosition(restaurant.position);
+              },
+            }}
+          >
             <Popup>{restaurant.name}</Popup>
           </Marker>
         ))}
-        <ChangeView center={position} />
+
+        {/* <ChangeView center={position} /> */}
       </MapContainer>
     </>
   );
