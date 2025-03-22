@@ -290,7 +290,7 @@ export default function Maps() {
           </Marker>
         ))}
 
-        {/* <ChangeView center={position} /> */}
+        <ChangeView center={position} />
       </MapContainer>
     </>
   );
