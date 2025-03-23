@@ -127,6 +127,7 @@ export default function Maps() {
   const [selectedRestaurantName, setSelectedRestaurantName] = useState(null);
   const [visibleRestaurants, setVisibleRestaurants] = useState([]);
   const [hoveredRestaurantName, setHoveredRestaurantName] = useState(null);
+  const canDeselect = useRef(true); // autorise/désautorise la déselection
 
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -217,6 +218,27 @@ export default function Maps() {
 
   const markerRefs = useRef({});
 
+  function MapInteractionDeselector({
+    setSelectedRestaurantName,
+    markerRefs,
+    canDeselect,
+  }) {
+    useMapEvent("movestart", () => {
+      if (!canDeselect.current) return;
+
+      // Fermer les popups
+      Object.values(markerRefs.current).forEach((marker) => {
+        if (marker && marker.getPopup()) {
+          marker.closePopup();
+        }
+      });
+
+      setSelectedRestaurantName(null);
+    });
+
+    return null;
+  }
+
   function MapClickDeselector({ setSelectedRestaurantName, markerRefs }) {
     useMapEvent("click", (e) => {
       // Ferme tous les popups
@@ -228,6 +250,7 @@ export default function Maps() {
 
       // Déselectionne le restaurant
       setSelectedRestaurantName(null);
+      setPosition(null);
     });
 
     return null;
@@ -290,13 +313,19 @@ export default function Maps() {
                   : ""
               }`}
               onClick={() => {
+                canDeselect.current = false;
                 setPosition(restaurant.position);
                 setSelectedRestaurantName(restaurant.name);
-                // 👉 Ouvre la popup associée au marker
+
                 const marker = markerRefs.current[restaurant.name];
                 if (marker) {
                   marker.openPopup();
                 }
+
+                // Autoriser la déselection après 500ms
+                setTimeout(() => {
+                  canDeselect.current = true;
+                }, 500);
               }}
               onMouseEnter={() => {
                 const marker = markerRefs.current[restaurant.name];
@@ -330,6 +359,12 @@ export default function Maps() {
         <MapClickDeselector
           setSelectedRestaurantName={setSelectedRestaurantName}
           markerRefs={markerRefs}
+        />
+
+        <MapInteractionDeselector
+          setSelectedRestaurantName={setSelectedRestaurantName}
+          markerRefs={markerRefs}
+          canDeselect={canDeselect}
         />
 
         <MapEvents
