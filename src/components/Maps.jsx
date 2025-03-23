@@ -91,6 +91,7 @@ const debounce = (func, delay) => {
 };
 
 function ChangeView({ center }) {
+  if (!center) return null;
   const map = useMap();
   map.setView(center, 15);
   return null;
@@ -122,9 +123,10 @@ async function geocodeRestaurants(restaurants) {
 }
 
 export default function Maps() {
-  const [position, setPosition] = useState([43.675819, 7.289429]);
+  const [position, setPosition] = useState(null);
   const [selectedRestaurantName, setSelectedRestaurantName] = useState(null);
   const [visibleRestaurants, setVisibleRestaurants] = useState([]);
+  const [hoveredRestaurantName, setHoveredRestaurantName] = useState(null);
 
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -196,6 +198,41 @@ export default function Maps() {
     fetchRestaurants();
   }, []);
 
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      console.warn("La géolocalisation n'est pas supportée par ce navigateur.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setPosition([latitude, longitude]);
+      },
+      (error) => {
+        console.error("Erreur de géolocalisation :", error);
+      }
+    );
+  }, []);
+
+  const markerRefs = useRef({});
+
+  function MapClickDeselector({ setSelectedRestaurantName, markerRefs }) {
+    useMapEvent("click", (e) => {
+      // Ferme tous les popups
+      Object.values(markerRefs.current).forEach((marker) => {
+        if (marker && marker.getPopup()) {
+          marker.closePopup();
+        }
+      });
+
+      // Déselectionne le restaurant
+      setSelectedRestaurantName(null);
+    });
+
+    return null;
+  }
+
   return (
     <>
       <div className="bg-blue-200 p-4 w-2xs">
@@ -230,6 +267,7 @@ export default function Maps() {
                     setPosition(item.position);
                     setQuery(item.label);
                     setSuggestions([]);
+                    map.flyTo(item.position, 15);
                   }}
                 >
                   {item.label}
@@ -246,13 +284,32 @@ export default function Maps() {
             <li
               key={restaurant.name}
               className={`cursor-pointer hover:text-blue-500 ${
-                selectedRestaurantName === restaurant.name
+                selectedRestaurantName === restaurant.name ||
+                hoveredRestaurantName === restaurant.name
                   ? "font-bold text-blue-700"
                   : ""
               }`}
               onClick={() => {
                 setPosition(restaurant.position);
                 setSelectedRestaurantName(restaurant.name);
+                // 👉 Ouvre la popup associée au marker
+                const marker = markerRefs.current[restaurant.name];
+                if (marker) {
+                  marker.openPopup();
+                }
+              }}
+              onMouseEnter={() => {
+                const marker = markerRefs.current[restaurant.name];
+                if (marker) {
+                  marker.openPopup();
+                }
+              }}
+              onMouseLeave={() => {
+                const marker = markerRefs.current[restaurant.name];
+                // ⚠️ Ne ferme la popup que si ce n’est pas le restaurant sélectionné
+                if (marker && selectedRestaurantName !== restaurant.name) {
+                  marker.closePopup();
+                }
               }}
             >
               {restaurant.name}
@@ -270,6 +327,11 @@ export default function Maps() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
+        <MapClickDeselector
+          setSelectedRestaurantName={setSelectedRestaurantName}
+          markerRefs={markerRefs}
+        />
+
         <MapEvents
           setVisibleRestaurants={setVisibleRestaurants}
           allRestaurants={restaurants}
@@ -279,18 +341,40 @@ export default function Maps() {
           <Marker
             key={restaurant.name}
             position={restaurant.position}
+            ref={(ref) => {
+              if (ref) {
+                markerRefs.current[restaurant.name] = ref;
+              }
+            }}
             eventHandlers={{
               click: () => {
                 setSelectedRestaurantName(restaurant.name);
                 setPosition(restaurant.position);
+              },
+              popupclose: () => {
+                setPosition(null);
+                setSelectedRestaurantName((current) => {
+                  // Sélectionne uniquement si c’était ce restaurant qui était actif
+                  if (current === restaurant.name) {
+                    return null;
+                  }
+                  return current;
+                });
+              },
+              mouseover: () => {
+                setHoveredRestaurantName(restaurant.name);
+              },
+              mouseout: () => {
+                setHoveredRestaurantName((current) =>
+                  current === restaurant.name ? null : current
+                );
               },
             }}
           >
             <Popup>{restaurant.name}</Popup>
           </Marker>
         ))}
-
-        {/* <ChangeView center={position} /> */}
+        <ChangeView center={position} />
       </MapContainer>
     </>
   );
