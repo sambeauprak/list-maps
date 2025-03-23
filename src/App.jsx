@@ -1,4 +1,3 @@
-import List from "./components/List";
 import Maps from "./components/Maps";
 import MainLayout from "./layout/MainLayout";
 
