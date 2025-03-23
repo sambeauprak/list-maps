@@ -307,9 +307,12 @@ export default function Maps() {
             <li
               key={restaurant.name}
               className={`cursor-pointer hover:text-blue-500 ${
-                selectedRestaurantName === restaurant.name ||
-                hoveredRestaurantName === restaurant.name
+                selectedRestaurantName === restaurant.name
                   ? "font-bold text-blue-700"
+                  : ""
+              } ${
+                hoveredRestaurantName === restaurant.name
+                  ? " text-blue-700"
                   : ""
               }`}
               onClick={() => {
